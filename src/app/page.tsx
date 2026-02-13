@@ -1,16 +1,14 @@
 "use client";
 
-import { useMemo } from "react";
 import { useAppStore } from "@/lib/store";
 import { levelTierFromXp, tierRange } from "@/lib/gamification";
 import { StatsCard } from "@/components/StatsCard";
 import { ProgressBar } from "@/components/ProgressBar";
 import { StreakBadge } from "@/components/StreakBadge";
 import { SkillDistribution } from "@/components/SkillDistribution";
-import { addDaysYmd, todayYmd, weekStartMondayYmd } from "@/lib/date";
 
 export default function Home() {
-  const { user, weeklyPlan, derived, logs } = useAppStore();
+  const { user, weeklyPlan, derived } = useAppStore();
   const tier = levelTierFromXp(derived.levelXpTotal);
   const range = tierRange(tier);
   const tierProgress = derived.levelXpTotal - range.min;
@@ -20,19 +18,6 @@ export default function Home() {
     weeklyPlan.xpTarget > 0
       ? Math.min(100, (derived.weeklyXpEarned / weeklyPlan.xpTarget) * 100)
       : 0;
-
-  const weekStart = weekStartMondayYmd(todayYmd());
-  const weekDays = useMemo(() => {
-    const arr: { label: string; date: string; hasXp: boolean }[] = [];
-    const names = ["M", "T", "W", "T", "F", "S", "S"];
-    const today = todayYmd();
-    for (let i = 0; i < 7; i++) {
-      const date = addDaysYmd(weekStart, i);
-      const hasXp = logs.some((l) => l.date === date);
-      arr.push({ label: names[i], date, hasXp: !!hasXp && date <= today });
-    }
-    return arr;
-  }, [logs, weekStart]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -45,6 +30,18 @@ export default function Home() {
           center before you jump into missions or focus mode.
         </p>
       </header>
+
+      <section className="rounded-xl border-2 border-dashed border-zinc-300 bg-zinc-50/80 px-5 py-4">
+        <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+          Your big goal
+        </div>
+        <p className="mt-2 text-lg font-semibold text-zinc-900">
+          e.g. Reach B2 · Pass IELTS 7 · Speak confidently in meetings
+        </p>
+        <p className="mt-1 text-sm text-zinc-600">
+          Set your big goal here so every mission moves you toward what matters.
+        </p>
+      </section>
 
       <section className="grid gap-4 md:grid-cols-4">
         <StatsCard
@@ -69,31 +66,13 @@ export default function Home() {
             {weeklyPct.toFixed(0)}% of this week&apos;s target
           </div>
         </section>
-        <section className="flex flex-col gap-3 rounded-xl border border-zinc-200 bg-white px-4 py-3 shadow-sm md:col-span-1">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-                Streak
-              </div>
-              <StreakBadge days={derived.streakDays} />
-            </div>
+        <section className="flex flex-col items-start justify-between gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-3 shadow-sm md:col-span-1">
+          <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+            Streak
           </div>
-          <div className="mt-1 text-xs text-zinc-500">
+          <StreakBadge days={derived.streakDays} />
+          <div className="text-xs text-zinc-500">
             Complete at least one mission today to keep the chain.
-          </div>
-          <div className="mt-2 grid grid-cols-7 gap-1 text-[11px] text-zinc-600">
-            {weekDays.map((d) => (
-              <div key={d.date} className="flex flex-col items-center gap-1">
-                <div className="text-[10px] text-zinc-500">{d.label}</div>
-                <div
-                  className={`h-5 w-5 rounded-md border ${
-                    d.hasXp
-                      ? "border-emerald-500 bg-emerald-100"
-                      : "border-zinc-200 bg-zinc-50"
-                  }`}
-                />
-              </div>
-            ))}
           </div>
         </section>
       </section>
