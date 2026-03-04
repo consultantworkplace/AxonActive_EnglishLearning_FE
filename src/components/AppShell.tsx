@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { useAppStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -17,6 +19,17 @@ const navItems = [
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const token = useAppStore((s) => s.token);
+  const user = useAppStore((s) => s.user);
+  const logout = useAppStore((s) => s.actions.logout);
+  const tryRestoreSession = useAppStore((s) => s.actions.tryRestoreSession);
+
+  useEffect(() => {
+    tryRestoreSession();
+  }, [tryRestoreSession]);
+
+  const isAuthenticated = !!token;
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -33,7 +46,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </span>
             </div>
           </div>
-          <nav className="hidden gap-3 text-sm md:flex">
+          <nav className="hidden items-center gap-3 text-sm md:flex">
             {navItems.map((item) => {
               const active =
                 item.href === "/"
@@ -54,6 +67,40 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </Link>
               );
             })}
+            <div className="ml-2 flex items-center gap-2">
+              {isAuthenticated ? (
+                <>
+                  <span className="text-xs text-zinc-600">
+                    {user.displayName || user.email}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      logout();
+                      router.push("/login");
+                    }}
+                    className="rounded-full border border-zinc-300 px-3 py-1 text-xs text-zinc-600 hover:bg-zinc-100"
+                  >
+                    Sign out
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Link
+                    href="/login"
+                    className="rounded-full border border-zinc-300 px-3 py-1 text-xs text-zinc-600 hover:bg-zinc-100"
+                  >
+                    Sign in
+                  </Link>
+                  <Link
+                    href="/register"
+                    className="rounded-full bg-accent px-3 py-1 text-xs text-white hover:bg-blue-600"
+                  >
+                    Register
+                  </Link>
+                </>
+              )}
+            </div>
           </nav>
         </div>
       </header>
@@ -61,4 +108,3 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
-

@@ -5,14 +5,24 @@ import { useAppStore } from "@/lib/store";
 import type { SkillId } from "@/lib/types";
 import { MissionCard } from "@/components/MissionCard";
 import { MissionFilters } from "@/components/MissionFilters";
+import { AuthGuard } from "@/components/AuthGuard";
 
 export default function MissionsPage() {
+  return (
+    <AuthGuard>
+      <MissionsContent />
+    </AuthGuard>
+  );
+}
+
+function MissionsContent() {
   const { missionTemplates, actions } = useAppStore();
   const [selectedSkill, setSelectedSkill] = useState<SkillId | "all">("all");
   const [maxMinutes, setMaxMinutes] = useState<number>(20);
   const [lastCompletedTitle, setLastCompletedTitle] = useState<string | null>(
     null
   );
+  const [completing, setCompleting] = useState<string | null>(null);
 
   const filtered = useMemo(
     () =>
@@ -55,9 +65,12 @@ export default function MissionsPage() {
           <MissionCard
             key={mission.id}
             mission={mission}
-            onComplete={() => {
-              actions.completeMission(mission.id);
+            completing={completing === mission.id}
+            onComplete={async () => {
+              setCompleting(mission.id);
+              await actions.completeMission(mission.id);
               setLastCompletedTitle(mission.title);
+              setCompleting(null);
             }}
           />
         ))}
@@ -71,4 +84,3 @@ export default function MissionsPage() {
     </div>
   );
 }
-

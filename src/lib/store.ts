@@ -9,18 +9,36 @@ import type {
   VocabItem,
   WeeklyPlan,
 } from "@/lib/types";
-import {
-  defaultUser,
-  missionTemplates,
-  seedFeedback,
-  seedLogs,
-  seedPlan,
-  seedVocab,
-  skills,
-} from "@/lib/mockSeed";
-import { lastNDaysYmd, todayYmd, weekStartMondayYmd } from "@/lib/date";
+import * as api from "@/lib/api";
+import { todayYmd, weekStartMondayYmd } from "@/lib/date";
+
+// ── Defaults (shown while loading / logged-out) ──────
+
+const emptyUser: User = {
+  id: "",
+  email: "",
+  displayName: "Guest",
+  xpTotal: 0,
+  weeklyXpTarget: 450,
+  rewardPointsUsed: 0,
+};
+
+const defaultPlan: WeeklyPlan = {
+  weekStartDate: weekStartMondayYmd(todayYmd()),
+  xpTarget: 450,
+  skillFocusPercentages: {
+    reading: 25,
+    listening: 25,
+    speaking: 20,
+    writing: 20,
+    vocabulary: 10,
+  },
+};
+
+// ── Types ─────────────────────────────────────────────
 
 export type AppState = {
+  token: string | null;
   user: User;
   skills: Skill[];
   missionTemplates: MissionTemplate[];
@@ -28,6 +46,8 @@ export type AppState = {
   weeklyPlan: WeeklyPlan;
   feedback: FeedbackItem[];
   vocab: VocabItem[];
+  loading: boolean;
+  error: string | null;
 };
 
 export type DerivedStats = {
@@ -39,10 +59,16 @@ export type DerivedStats = {
 };
 
 export type AppActions = {
-  completeMission: (templateId: string) => void;
-  setWeeklyTarget: (xp: number) => void;
-  setSkillFocus: (percentages: Partial<Record<SkillId, number>>) => void;
-  setRewardPointsUsed: (points: number) => void;
+  login: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string) => Promise<void>;
+  logout: () => void;
+  loadData: () => Promise<void>;
+  tryRestoreSession: () => Promise<void>;
+
+  completeMission: (templateId: string) => Promise<void>;
+  setWeeklyTarget: (xp: number) => Promise<void>;
+  setSkillFocus: (percentages: Partial<Record<SkillId, number>>) => Promise<void>;
+  setRewardPointsUsed: (points: number) => Promise<void>;
 };
 
 type Store = AppState & {
@@ -50,145 +76,274 @@ type Store = AppState & {
   actions: AppActions;
 };
 
-function computeDerived(state: AppState): DerivedStats {
+// ── Derived stats (computed from server stats + local state) ──
+
+function computeDerived(
+  state: AppState,
+  serverStats?: api.UserStats,
+): DerivedStats {
   const today = todayYmd();
-  const weekStart = weekStartMondayYmd(today);
-  const last7 = new Set(lastNDaysYmd(7, today));
 
-  let streak = 0;
-  // simple backward walk until first empty day
-  for (let i = 0; i < 30; i++) {
-    const daysBack = lastNDaysYmd(i + 1, today);
-    const ymd = daysBack[0];
-    const anyLog = state.logs.some((l) => l.date === ymd);
-    if (!anyLog) break;
-    streak++;
+  if (serverStats) {
+    const dist = serverStats.skillDistribution7d;
+    const total = Object.values(dist).reduce((a, b) => a + b, 0) || 1;
+    const distribution: Record<SkillId, number> = {
+      reading: ((dist.reading ?? 0) / total) * 100,
+      listening: ((dist.listening ?? 0) / total) * 100,
+      speaking: ((dist.speaking ?? 0) / total) * 100,
+      writing: ((dist.writing ?? 0) / total) * 100,
+      vocabulary: ((dist.vocabulary ?? 0) / total) * 100,
+    };
+
+    return {
+      todayYmd: today,
+      streakDays: serverStats.streak,
+      levelXpTotal: state.user.xpTotal,
+      weeklyXpEarned: serverStats.weeklyXpEarned,
+      skillDistribution7d: distribution,
+    };
   }
-
-  let weeklyXpEarned = 0;
-  const skillTotals: Record<SkillId, number> = {
-    reading: 0,
-    listening: 0,
-    speaking: 0,
-    writing: 0,
-    vocabulary: 0,
-  };
-
-  for (const log of state.logs) {
-    if (log.date >= weekStart && log.date <= today) {
-      weeklyXpEarned += log.xpEarned;
-    }
-    if (last7.has(log.date)) {
-      skillTotals[log.skillId] += log.xpEarned;
-    }
-  }
-
-  const total7 = Object.values(skillTotals).reduce((a, b) => a + b, 0) || 1;
-  const distribution: Record<SkillId, number> = {
-    reading: (skillTotals.reading / total7) * 100,
-    listening: (skillTotals.listening / total7) * 100,
-    speaking: (skillTotals.speaking / total7) * 100,
-    writing: (skillTotals.writing / total7) * 100,
-    vocabulary: (skillTotals.vocabulary / total7) * 100,
-  };
 
   return {
     todayYmd: today,
-    streakDays: streak,
+    streakDays: 0,
     levelXpTotal: state.user.xpTotal,
-    weeklyXpEarned,
-    skillDistribution7d: distribution,
+    weeklyXpEarned: 0,
+    skillDistribution7d: {
+      reading: 20,
+      listening: 20,
+      speaking: 20,
+      writing: 20,
+      vocabulary: 20,
+    },
   };
 }
 
+// ── Store ─────────────────────────────────────────────
+
 export const useAppStore = create<Store>((set, get) => {
   const initial: AppState = {
-    user: defaultUser,
-    skills,
-    missionTemplates,
-    logs: seedLogs,
-    weeklyPlan: seedPlan,
-    feedback: seedFeedback,
-    vocab: seedVocab,
+    token: null,
+    user: emptyUser,
+    skills: [],
+    missionTemplates: [],
+    logs: [],
+    weeklyPlan: defaultPlan,
+    feedback: [],
+    vocab: [],
+    loading: true,
+    error: null,
   };
-
-  const derived = computeDerived(initial);
 
   return {
     ...initial,
-    derived,
+    derived: computeDerived(initial),
     actions: {
-      completeMission: (templateId: string) => {
+      login: async (email, password) => {
+        set({ loading: true, error: null });
+        try {
+          const resp = await api.login(email, password);
+          localStorage.setItem("jwt", resp.token);
+          set({ token: resp.token, user: resp.user, loading: false });
+          await get().actions.loadData();
+        } catch (e) {
+          const msg = e instanceof api.ApiError && e.status === 401
+            ? "Invalid email or password"
+            : "Login failed. Please try again.";
+          set({ loading: false, error: msg });
+          throw e;
+        }
+      },
+
+      register: async (email, password) => {
+        set({ loading: true, error: null });
+        try {
+          const resp = await api.register(email, password);
+          localStorage.setItem("jwt", resp.token);
+          set({ token: resp.token, user: resp.user, loading: false });
+          await get().actions.loadData();
+        } catch (e) {
+          const msg = e instanceof api.ApiError && e.status === 409
+            ? "Email already in use"
+            : "Registration failed. Please try again.";
+          set({ loading: false, error: msg });
+          throw e;
+        }
+      },
+
+      logout: () => {
+        localStorage.removeItem("jwt");
+        set({
+          token: null,
+          user: emptyUser,
+          logs: [],
+          weeklyPlan: defaultPlan,
+          feedback: [],
+          vocab: [],
+          error: null,
+          derived: computeDerived(initial),
+        });
+      },
+
+      tryRestoreSession: async () => {
+        const token = typeof window !== "undefined" ? localStorage.getItem("jwt") : null;
+        if (!token) {
+          set({ loading: false });
+          return;
+        }
+        set({ token, loading: true });
+        try {
+          const user = await api.getMe();
+          set({ user });
+          await get().actions.loadData();
+        } catch {
+          localStorage.removeItem("jwt");
+          set({ token: null, loading: false });
+        }
+      },
+
+      loadData: async () => {
+        set({ loading: true, error: null });
+        try {
+          const [skills, templates, logs, plan, feedback, vocab, stats] =
+            await Promise.all([
+              api.listSkills(),
+              api.listMissionTemplates(),
+              api.listMissionLogs(),
+              api.getCurrentPlan().catch(() => null),
+              api.listFeedback().catch(() => []),
+              api.listVocabulary().catch(() => []),
+              api.getUserStats().catch(() => null),
+            ]);
+
+          const currentPlan = plan ?? defaultPlan;
+          const normalizedPlan: WeeklyPlan = {
+            ...currentPlan,
+            skillFocusPercentages: {
+              reading: currentPlan.skillFocusPercentages?.reading ?? 25,
+              listening: currentPlan.skillFocusPercentages?.listening ?? 25,
+              speaking: currentPlan.skillFocusPercentages?.speaking ?? 20,
+              writing: currentPlan.skillFocusPercentages?.writing ?? 20,
+              vocabulary: currentPlan.skillFocusPercentages?.vocabulary ?? 10,
+            },
+          };
+
+          const state = get();
+          const nextState: AppState = {
+            ...state,
+            skills,
+            missionTemplates: templates,
+            logs,
+            weeklyPlan: normalizedPlan,
+            feedback,
+            vocab,
+            loading: false,
+          };
+
+          set({
+            ...nextState,
+            derived: computeDerived(nextState, stats ?? undefined),
+          });
+        } catch (e) {
+          set({
+            loading: false,
+            error: e instanceof Error ? e.message : "Failed to load data",
+          });
+        }
+      },
+
+      completeMission: async (templateId: string) => {
         const state = get();
         const tpl = state.missionTemplates.find((m) => m.id === templateId);
         if (!tpl) return;
-        const today = todayYmd();
-        const newLog: MissionLog = {
-          id: `log-${Date.now()}`,
-          date: today,
-          missionTemplateId: tpl.id,
-          skillId: tpl.skillId,
-          durationMinutes: tpl.estMinutes,
-          xpEarned: tpl.xp,
-          difficulty: tpl.difficulty,
-        };
-        const nextState: AppState = {
-          ...state,
-          user: { ...state.user, xpTotal: state.user.xpTotal + tpl.xp },
-          logs: [...state.logs, newLog],
-        };
-        set({
-          ...nextState,
-          derived: computeDerived(nextState),
-        });
+
+        try {
+          const newLog = await api.createMissionLog({
+            missionTemplateId: tpl.id,
+          });
+          const user = await api.getMe();
+          const stats = await api.getUserStats();
+
+          const nextState: AppState = {
+            ...get(),
+            user,
+            logs: [...get().logs, newLog],
+          };
+          set({
+            ...nextState,
+            derived: computeDerived(nextState, stats),
+          });
+        } catch (e) {
+          set({ error: e instanceof Error ? e.message : "Failed to complete mission" });
+        }
       },
-      setWeeklyTarget: (xp: number) => {
-        const state = get();
-        const nextPlan: WeeklyPlan = {
-          ...state.weeklyPlan,
-          xpTarget: xp,
-        };
-        const next: AppState = {
-          ...state,
-          user: { ...state.user, weeklyXpTarget: xp },
-          weeklyPlan: nextPlan,
-        };
-        set({
-          ...next,
-          derived: computeDerived(next),
-        });
+
+      setWeeklyTarget: async (xp: number) => {
+        try {
+          const [plan, user] = await Promise.all([
+            api.upsertCurrentPlan({ xpTarget: xp }),
+            api.updateMe({ weeklyXpTarget: xp }),
+          ]);
+
+          const normalizedPlan: WeeklyPlan = {
+            ...plan,
+            skillFocusPercentages: {
+              reading: plan.skillFocusPercentages?.reading ?? 25,
+              listening: plan.skillFocusPercentages?.listening ?? 25,
+              speaking: plan.skillFocusPercentages?.speaking ?? 20,
+              writing: plan.skillFocusPercentages?.writing ?? 20,
+              vocabulary: plan.skillFocusPercentages?.vocabulary ?? 10,
+            },
+          };
+
+          set({
+            user,
+            weeklyPlan: normalizedPlan,
+          });
+        } catch (e) {
+          set({ error: e instanceof Error ? e.message : "Failed to update target" });
+        }
       },
-      setSkillFocus: (percentages: Partial<Record<SkillId, number>>) => {
+
+      setSkillFocus: async (percentages: Partial<Record<SkillId, number>>) => {
         const state = get();
         const merged: Record<SkillId, number> = {
           ...state.weeklyPlan.skillFocusPercentages,
           ...percentages,
         };
-        const nextPlan: WeeklyPlan = {
-          ...state.weeklyPlan,
-          skillFocusPercentages: merged,
-        };
-        const next: AppState = {
-          ...state,
-          weeklyPlan: nextPlan,
-        };
-        set({
-          ...next,
-          derived: computeDerived(next),
-        });
+
+        try {
+          const plan = await api.upsertCurrentPlan({
+            xpTarget: state.weeklyPlan.xpTarget,
+            skillFocusPercentages: merged,
+          });
+
+          const normalizedPlan: WeeklyPlan = {
+            ...plan,
+            skillFocusPercentages: {
+              reading: plan.skillFocusPercentages?.reading ?? merged.reading,
+              listening: plan.skillFocusPercentages?.listening ?? merged.listening,
+              speaking: plan.skillFocusPercentages?.speaking ?? merged.speaking,
+              writing: plan.skillFocusPercentages?.writing ?? merged.writing,
+              vocabulary: plan.skillFocusPercentages?.vocabulary ?? merged.vocabulary,
+            },
+          };
+
+          set({ weeklyPlan: normalizedPlan });
+        } catch (e) {
+          set({ error: e instanceof Error ? e.message : "Failed to update focus" });
+        }
       },
-      setRewardPointsUsed: (points: number) => {
-        const state = get();
-        const next: AppState = {
-          ...state,
-          user: {
-            ...state.user,
-            rewardPointsUsed: Math.max(0, Math.floor(points)),
-          },
-        };
-        set(next);
+
+      setRewardPointsUsed: async (points: number) => {
+        const rounded = Math.max(0, Math.floor(points));
+        try {
+          const user = await api.updateMe({ rewardPointsUsed: rounded });
+          set({ user });
+        } catch (e) {
+          set({ error: e instanceof Error ? e.message : "Failed to update reward points" });
+        }
       },
     },
   };
 });
-

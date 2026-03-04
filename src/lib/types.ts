@@ -7,14 +7,15 @@ export type SkillId =
 
 export type Difficulty = 1 | 2 | 3 | 4 | 5;
 
-export type LevelTier = "Bronze" | "Silver" | "Gold" | "Diamond";
-
 export type User = {
   id: string;
+  email: string;
   displayName: string;
   xpTotal: number;
   weeklyXpTarget: number;
   rewardPointsUsed?: number;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 export type Skill = {
@@ -34,6 +35,7 @@ export type MissionTemplate = {
 
 export type MissionLog = {
   id: string;
+  userId?: string;
   date: string; // YYYY-MM-DD (local)
   missionTemplateId: string;
   skillId: SkillId;
@@ -44,6 +46,8 @@ export type MissionLog = {
 };
 
 export type WeeklyPlan = {
+  id?: string;
+  userId?: string;
   weekStartDate: string; // YYYY-MM-DD (Mon)
   xpTarget: number;
   skillFocusPercentages: Record<SkillId, number>; // 0..100
@@ -51,6 +55,7 @@ export type WeeklyPlan = {
 
 export type WritingFeedback = {
   id: string;
+  userId?: string;
   createdAt: string; // YYYY-MM-DD
   title: string;
   prompt?: string;
@@ -61,6 +66,7 @@ export type WritingFeedback = {
 
 export type SpeakingFeedback = {
   id: string;
+  userId?: string;
   createdAt: string; // YYYY-MM-DD
   title: string;
   audioFileName: string;
@@ -80,10 +86,10 @@ export type FeedbackItem =
 
 export type VocabItem = {
   id: string;
+  userId?: string;
   term: string;
   topicTags: string[];
   collocations: string[];
   examples: string[];
   usageNotes?: string;
 };
-

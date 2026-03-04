@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 type Props = {
-  onCompletedSession: () => void;
+  onCompletedSession: () => void | Promise<void>;
 };
 
 const PRESETS = [

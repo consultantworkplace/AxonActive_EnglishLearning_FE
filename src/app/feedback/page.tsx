@@ -2,8 +2,17 @@
 
 import { useState } from "react";
 import { useAppStore } from "@/lib/store";
+import { AuthGuard } from "@/components/AuthGuard";
 
 export default function FeedbackPage() {
+  return (
+    <AuthGuard>
+      <FeedbackContent />
+    </AuthGuard>
+  );
+}
+
+function FeedbackContent() {
   const { feedback } = useAppStore();
   const [selectedWritingId, setSelectedWritingId] = useState<string | null>(
     null

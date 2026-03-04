@@ -8,8 +8,17 @@ import { XpHistoryChart } from "@/components/Charts/XpHistoryChart";
 import { SkillRadar } from "@/components/Charts/SkillRadar";
 import { StatsCard } from "@/components/StatsCard";
 import { skillLabel } from "@/lib/utils";
+import { AuthGuard } from "@/components/AuthGuard";
 
 export default function AnalyticsPage() {
+  return (
+    <AuthGuard>
+      <AnalyticsContent />
+    </AuthGuard>
+  );
+}
+
+function AnalyticsContent() {
   const { logs, derived } = useAppStore();
 
   const historyData = useMemo(() => {

@@ -12,9 +12,18 @@ import { ProgressBar } from "@/components/ProgressBar";
 import { StreakBadge } from "@/components/StreakBadge";
 import { SkillDistribution } from "@/components/SkillDistribution";
 import { LevelRewardsOverlay } from "@/components/LevelRewardsOverlay";
+import { AuthGuard } from "@/components/AuthGuard";
 
 export default function Home() {
-  const { user, weeklyPlan, derived } = useAppStore();
+  return (
+    <AuthGuard>
+      <DashboardContent />
+    </AuthGuard>
+  );
+}
+
+function DashboardContent() {
+  const { user, weeklyPlan, derived, actions } = useAppStore();
   const [showRewardsOverlay, setShowRewardsOverlay] = useState(false);
 
   const level = levelFromXp(derived.levelXpTotal);
@@ -150,11 +159,10 @@ export default function Home() {
           level={level}
           rewardPoints={rewardPoints}
           pointsUsed={user.rewardPointsUsed ?? 0}
-          onPointsUsedChange={(v) => useAppStore.getState().actions.setRewardPointsUsed(v)}
+          onPointsUsedChange={(v) => actions.setRewardPointsUsed(v)}
           onClose={() => setShowRewardsOverlay(false)}
         />
       )}
     </div>
   );
 }
-

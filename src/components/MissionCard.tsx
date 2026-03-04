@@ -4,9 +4,10 @@ import { skillLabel } from "@/lib/utils";
 type Props = {
   mission: MissionTemplate;
   onComplete: () => void;
+  completing?: boolean;
 };
 
-export function MissionCard({ mission, onComplete }: Props) {
+export function MissionCard({ mission, onComplete, completing }: Props) {
   return (
     <section className="flex flex-col justify-between rounded-xl border border-zinc-200 bg-white px-4 py-3 shadow-sm">
       <header className="flex items-start justify-between gap-2">
@@ -32,9 +33,10 @@ export function MissionCard({ mission, onComplete }: Props) {
         <button
           type="button"
           onClick={onComplete}
-          className="rounded-full bg-accent px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-blue-600"
+          disabled={completing}
+          className="rounded-full bg-accent px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          Complete now
+          {completing ? "Saving…" : "Complete now"}
         </button>
       </div>
     </section>

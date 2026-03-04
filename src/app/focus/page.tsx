@@ -3,8 +3,17 @@
 import { useState } from "react";
 import { useAppStore } from "@/lib/store";
 import { FocusTimer } from "@/components/FocusTimer";
+import { AuthGuard } from "@/components/AuthGuard";
 
 export default function FocusPage() {
+  return (
+    <AuthGuard>
+      <FocusContent />
+    </AuthGuard>
+  );
+}
+
+function FocusContent() {
   const { actions } = useAppStore();
   const [lastLogged, setLastLogged] = useState<string | null>(null);
 
@@ -30,9 +39,8 @@ export default function FocusPage() {
         </header>
 
         <FocusTimer
-          onCompletedSession={() => {
-            // For the prototype, award XP via a generic listening mission.
-            actions.completeMission("listen-shadowing-5m");
+          onCompletedSession={async () => {
+            await actions.completeMission("listen-shadowing-5m");
             setLastLogged("listen-shadowing-5m");
           }}
         />
@@ -47,4 +55,3 @@ export default function FocusPage() {
     </div>
   );
 }
-

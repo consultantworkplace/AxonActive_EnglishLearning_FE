@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useAppStore } from "@/lib/store";
+import { AuthGuard } from "@/components/AuthGuard";
 
 type QuizItem = {
   id: string;
@@ -10,10 +11,19 @@ type QuizItem = {
 };
 
 export default function VocabularyPage() {
+  return (
+    <AuthGuard>
+      <VocabularyContent />
+    </AuthGuard>
+  );
+}
+
+function VocabularyContent() {
   const { vocab, actions } = useAppStore();
   const [topicFilter, setTopicFilter] = useState<string>("all");
   const [quizItems, setQuizItems] = useState<QuizItem[]>([]);
   const [completed, setCompleted] = useState(false);
+  const [completing, setCompleting] = useState(false);
 
   const topics = useMemo(() => {
     const set = new Set<string>();
@@ -40,10 +50,11 @@ export default function VocabularyPage() {
     setCompleted(false);
   };
 
-  const completeQuiz = () => {
-    // Award mock XP via vocab quiz mission if available.
-    actions.completeMission("vocab-quiz-10");
+  const completeQuiz = async () => {
+    setCompleting(true);
+    await actions.completeMission("vocab-quiz-10");
     setCompleted(true);
+    setCompleting(false);
   };
 
   return (
@@ -153,10 +164,10 @@ export default function VocabularyPage() {
             <button
               type="button"
               onClick={completeQuiz}
-              disabled={!quizItems.length}
+              disabled={!quizItems.length || completing}
               className="rounded-full bg-accent px-3 py-1.5 text-[11px] font-medium text-white disabled:cursor-not-allowed disabled:bg-zinc-300"
             >
-              Mark round as done
+              {completing ? "Saving…" : "Mark round as done"}
             </button>
           </div>
         </header>
@@ -193,4 +204,3 @@ export default function VocabularyPage() {
     </div>
   );
 }
-

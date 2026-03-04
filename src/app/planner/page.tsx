@@ -7,15 +7,25 @@ import { WeeklyCalendar } from "@/components/WeeklyCalendar";
 import { addDaysYmd, todayYmd, weekStartMondayYmd } from "@/lib/date";
 import { ProgressBar } from "@/components/ProgressBar";
 import { skillLabel } from "@/lib/utils";
+import { AuthGuard } from "@/components/AuthGuard";
 
 const dayShort = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 export default function PlannerPage() {
+  return (
+    <AuthGuard>
+      <PlannerContent />
+    </AuthGuard>
+  );
+}
+
+function PlannerContent() {
   const { logs, weeklyPlan, missionTemplates, actions } = useAppStore();
   const [target, setTarget] = useState<number>(weeklyPlan.xpTarget);
   const [focus, setFocus] = useState<Record<SkillId, number>>(
     weeklyPlan.skillFocusPercentages
   );
+  const [saving, setSaving] = useState(false);
 
   const weekStart = weekStartMondayYmd(todayYmd());
   const days = useMemo(() => {
@@ -96,12 +106,15 @@ export default function PlannerPage() {
           </div>
           <button
             type="button"
-            onClick={() => {
-              actions.setWeeklyTarget(target);
+            disabled={saving}
+            onClick={async () => {
+              setSaving(true);
+              await actions.setWeeklyTarget(target);
+              setSaving(false);
             }}
-            className="inline-flex items-center justify-center rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-600"
+            className="inline-flex items-center justify-center rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-600 disabled:opacity-50"
           >
-            Save target
+            {saving ? "Saving…" : "Save target"}
           </button>
           <p className="text-[11px] text-zinc-500">
             Use Parkinson&apos;s law: slightly tight but believable deadlines
@@ -209,4 +222,3 @@ export default function PlannerPage() {
     </div>
   );
 }
-

@@ -1,0 +1,1038 @@
+openapi: 3.0.3
+info:
+  title: English Learning Service API
+  description: REST API for the English Learning application — tracks missions, vocabulary, feedback, and weekly plans.
+  version: 1.0.0
+  contact:
+    name: English Learning Team
+
+servers:
+  # Added by API Auto Mocking Plugin
+  - description: SwaggerHub API Auto Mocking
+    url: https://virtserver.swaggerhub.com/axonactive/english-learning/1.0.0
+  - url: http://localhost:8080/api
+    description: Local development
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Auth
+    description: Registration and login
+  - name: User
+    description: Current user profile
+  - name: Skills
+    description: Reference skill data
+  - name: Mission Templates
+    description: Reference mission template data
+  - name: Mission Logs
+    description: User mission activity logs
+  - name: Weekly Plans
+    description: Weekly learning plans
+  - name: Feedback
+    description: Writing and speaking feedback
+  - name: Vocabulary
+    description: User vocabulary items
+  - name: Stats
+    description: Derived user statistics
+
+paths:
+  # ── Auth ───────────────────────────────────────────────
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new user
+      operationId: register
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "409":
+          description: Email already in use
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Authenticate and obtain a token
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── User ───────────────────────────────────────────────
+  /users/me:
+    get:
+      tags: [User]
+      summary: Get current user profile
+      operationId: getCurrentUser
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    patch:
+      tags: [User]
+      summary: Update current user profile
+      operationId: updateCurrentUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserUpdateRequest"
+      responses:
+        "200":
+          description: Updated user profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ── Skills ─────────────────────────────────────────────
+  /skills:
+    get:
+      tags: [Skills]
+      summary: List all skills
+      operationId: listSkills
+      security: []
+      responses:
+        "200":
+          description: List of skills
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Skill"
+
+  # ── Mission Templates ─────────────────────────────────
+  /missions/templates:
+    get:
+      tags: [Mission Templates]
+      summary: List mission templates
+      operationId: listMissionTemplates
+      security: []
+      parameters:
+        - name: skillId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter templates by skill ID
+      responses:
+        "200":
+          description: List of mission templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MissionTemplate"
+
+  # ── Mission Logs ───────────────────────────────────────
+  /users/me/logs:
+    get:
+      tags: [Mission Logs]
+      summary: List mission logs for current user
+      operationId: listMissionLogs
+      parameters:
+        - name: fromDate
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+          description: Start date (inclusive)
+        - name: toDate
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+          description: End date (inclusive)
+      responses:
+        "200":
+          description: List of mission logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MissionLog"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    post:
+      tags: [Mission Logs]
+      summary: Create a mission log entry
+      operationId: createMissionLog
+      description: >
+        Creates a new mission log for the authenticated user and
+        updates their cumulative xpTotal.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MissionLogCreateRequest"
+      responses:
+        "201":
+          description: Mission log created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MissionLog"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Mission template not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Weekly Plans ───────────────────────────────────────
+  /users/me/plans/current:
+    get:
+      tags: [Weekly Plans]
+      summary: Get current week plan
+      operationId: getCurrentWeeklyPlan
+      responses:
+        "200":
+          description: Current weekly plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WeeklyPlan"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: No plan exists for the current week
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    put:
+      tags: [Weekly Plans]
+      summary: Create or update current week plan
+      operationId: upsertCurrentWeeklyPlan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WeeklyPlanUpsertRequest"
+      responses:
+        "200":
+          description: Weekly plan saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WeeklyPlan"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ── Feedback ───────────────────────────────────────────
+  /users/me/feedback:
+    get:
+      tags: [Feedback]
+      summary: List all feedback (writing + speaking)
+      operationId: listFeedback
+      responses:
+        "200":
+          description: Combined feedback list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeedbackList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /users/me/feedback/writing:
+    post:
+      tags: [Feedback]
+      summary: Create writing feedback
+      operationId: createWritingFeedback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WritingFeedbackCreateRequest"
+      responses:
+        "201":
+          description: Writing feedback created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WritingFeedback"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /users/me/feedback/writing/{id}:
+    patch:
+      tags: [Feedback]
+      summary: Update writing feedback
+      operationId: updateWritingFeedback
+      parameters:
+        - $ref: "#/components/parameters/FeedbackId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WritingFeedbackUpdateRequest"
+      responses:
+        "200":
+          description: Writing feedback updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WritingFeedback"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Writing feedback not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /users/me/feedback/speaking:
+    post:
+      tags: [Feedback]
+      summary: Create speaking feedback
+      operationId: createSpeakingFeedback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SpeakingFeedbackCreateRequest"
+      responses:
+        "201":
+          description: Speaking feedback created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SpeakingFeedback"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /users/me/feedback/speaking/{id}:
+    patch:
+      tags: [Feedback]
+      summary: Update speaking feedback
+      operationId: updateSpeakingFeedback
+      parameters:
+        - $ref: "#/components/parameters/FeedbackId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SpeakingFeedbackUpdateRequest"
+      responses:
+        "200":
+          description: Speaking feedback updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SpeakingFeedback"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Speaking feedback not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Vocabulary ─────────────────────────────────────────
+  /users/me/vocabulary:
+    get:
+      tags: [Vocabulary]
+      summary: List vocabulary items
+      operationId: listVocabulary
+      parameters:
+        - name: topic
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by topic tag
+      responses:
+        "200":
+          description: List of vocabulary items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VocabItem"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    post:
+      tags: [Vocabulary]
+      summary: Create a vocabulary item
+      operationId: createVocabItem
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VocabItemCreateRequest"
+      responses:
+        "201":
+          description: Vocabulary item created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VocabItem"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /users/me/vocabulary/{id}:
+    patch:
+      tags: [Vocabulary]
+      summary: Update a vocabulary item
+      operationId: updateVocabItem
+      parameters:
+        - $ref: "#/components/parameters/VocabItemId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VocabItemUpdateRequest"
+      responses:
+        "200":
+          description: Vocabulary item updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VocabItem"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Vocabulary item not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      tags: [Vocabulary]
+      summary: Delete a vocabulary item
+      operationId: deleteVocabItem
+      parameters:
+        - $ref: "#/components/parameters/VocabItemId"
+      responses:
+        "204":
+          description: Vocabulary item deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Vocabulary item not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Stats ──────────────────────────────────────────────
+  /users/me/stats:
+    get:
+      tags: [Stats]
+      summary: Get derived user statistics
+      operationId: getUserStats
+      responses:
+        "200":
+          description: User statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserStats"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+# ═══════════════════════════════════════════════════════════
+# Components
+# ═══════════════════════════════════════════════════════════
+components:
+
+  # ── Security Schemes ───────────────────────────────────
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  # ── Reusable Parameters ────────────────────────────────
+  parameters:
+    FeedbackId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Feedback entry ID
+
+    VocabItemId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Vocabulary item ID
+
+  # ── Reusable Responses ────────────────────────────────
+  responses:
+    Unauthorized:
+      description: Missing or invalid authentication token
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Schemas ────────────────────────────────────────────
+  schemas:
+
+    # ─── Auth ────────────────────────────────────────────
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: learner@example.com
+        password:
+          type: string
+          format: password
+          minLength: 8
+          example: "s3cureP@ss"
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: learner@example.com
+        password:
+          type: string
+          format: password
+          example: "s3cureP@ss"
+
+    AuthResponse:
+      type: object
+      properties:
+        userId:
+          type: string
+          format: uuid
+        token:
+          type: string
+          description: JWT access token
+        user:
+          $ref: "#/components/schemas/User"
+
+    # ─── User ───────────────────────────────────────────
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        displayName:
+          type: string
+          example: Jane
+        xpTotal:
+          type: integer
+          example: 1200
+        weeklyXpTarget:
+          type: integer
+          example: 500
+        rewardPointsUsed:
+          type: integer
+          example: 3
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    UserUpdateRequest:
+      type: object
+      properties:
+        displayName:
+          type: string
+        weeklyXpTarget:
+          type: integer
+          minimum: 0
+        rewardPointsUsed:
+          type: integer
+          minimum: 0
+
+    # ─── Skill ──────────────────────────────────────────
+    Skill:
+      type: object
+      properties:
+        id:
+          type: string
+          example: listening
+        label:
+          type: string
+          example: Listening
+
+    # ─── Mission Template ───────────────────────────────
+    MissionTemplate:
+      type: object
+      properties:
+        id:
+          type: string
+          example: podcast-15
+        skillId:
+          type: string
+          example: listening
+        title:
+          type: string
+          example: Listen to a 15-min podcast
+        description:
+          type: string
+        xp:
+          type: integer
+          example: 30
+        estMinutes:
+          type: integer
+          example: 15
+        difficulty:
+          type: integer
+          minimum: 1
+          maximum: 5
+          example: 2
+
+    # ─── Mission Log ────────────────────────────────────
+    MissionLog:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        date:
+          type: string
+          format: date
+          description: YYYY-MM-DD (local date)
+          example: "2026-03-01"
+        missionTemplateId:
+          type: string
+        skillId:
+          type: string
+        durationMinutes:
+          type: integer
+          example: 15
+        xpEarned:
+          type: integer
+          example: 30
+        difficulty:
+          type: integer
+          minimum: 1
+          maximum: 5
+        notes:
+          type: string
+
+    MissionLogCreateRequest:
+      type: object
+      required: [missionTemplateId]
+      properties:
+        missionTemplateId:
+          type: string
+          description: ID of the mission template to log
+        date:
+          type: string
+          format: date
+          description: Defaults to today if omitted
+        durationMinutes:
+          type: integer
+          description: Overrides template estMinutes if provided
+        difficulty:
+          type: integer
+          minimum: 1
+          maximum: 5
+          description: Overrides template difficulty if provided
+        notes:
+          type: string
+
+    # ─── Weekly Plan ────────────────────────────────────
+    WeeklyPlan:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        weekStartDate:
+          type: string
+          format: date
+          example: "2026-02-23"
+        xpTarget:
+          type: integer
+          example: 500
+        skillFocusPercentages:
+          type: object
+          description: Percentage per skill (0..100, should sum to ~100)
+          additionalProperties:
+            type: integer
+          example:
+            reading: 25
+            listening: 25
+            speaking: 20
+            writing: 20
+            vocabulary: 10
+
+    WeeklyPlanUpsertRequest:
+      type: object
+      properties:
+        xpTarget:
+          type: integer
+          minimum: 0
+        skillFocusPercentages:
+          type: object
+          additionalProperties:
+            type: integer
+
+    # ─── Writing Feedback ───────────────────────────────
+    WritingFeedback:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date
+        title:
+          type: string
+          example: Essay on climate change
+        prompt:
+          type: string
+        text:
+          type: string
+        corrections:
+          type: array
+          items:
+            $ref: "#/components/schemas/Correction"
+        repeatedMistakeTags:
+          type: array
+          items:
+            type: string
+          example: [verb-s, adjective-form, punctuation]
+
+    WritingFeedbackCreateRequest:
+      type: object
+      required: [title, text]
+      properties:
+        title:
+          type: string
+        prompt:
+          type: string
+        text:
+          type: string
+        corrections:
+          type: array
+          items:
+            $ref: "#/components/schemas/Correction"
+        repeatedMistakeTags:
+          type: array
+          items:
+            type: string
+
+    WritingFeedbackUpdateRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        prompt:
+          type: string
+        text:
+          type: string
+        corrections:
+          type: array
+          items:
+            $ref: "#/components/schemas/Correction"
+        repeatedMistakeTags:
+          type: array
+          items:
+            type: string
+
+    Correction:
+      type: object
+      properties:
+        from:
+          type: string
+          example: He go to school
+        to:
+          type: string
+          example: He goes to school
+        note:
+          type: string
+          example: Third-person singular requires "goes"
+
+    # ─── Speaking Feedback ──────────────────────────────
+    SpeakingFeedback:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date
+        title:
+          type: string
+          example: IELTS mock speaking part 2
+        audioFileName:
+          type: string
+          example: recording-2026-03-01.webm
+        checklist:
+          $ref: "#/components/schemas/SpeakingChecklist"
+        comments:
+          type: string
+        issueTags:
+          type: array
+          items:
+            type: string
+          example: [ending-sounds, stress]
+
+    SpeakingFeedbackCreateRequest:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+        audioFileName:
+          type: string
+        checklist:
+          $ref: "#/components/schemas/SpeakingChecklist"
+        comments:
+          type: string
+        issueTags:
+          type: array
+          items:
+            type: string
+
+    SpeakingFeedbackUpdateRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        audioFileName:
+          type: string
+        checklist:
+          $ref: "#/components/schemas/SpeakingChecklist"
+        comments:
+          type: string
+        issueTags:
+          type: array
+          items:
+            type: string
+
+    SpeakingChecklist:
+      type: object
+      description: Fixed checklist for pronunciation evaluation
+      properties:
+        endingSounds:
+          type: boolean
+          example: false
+        linking:
+          type: boolean
+          example: true
+        stress:
+          type: boolean
+          example: false
+        clarity:
+          type: boolean
+          example: true
+
+    # ─── Feedback List (combined) ───────────────────────
+    FeedbackList:
+      type: object
+      properties:
+        writing:
+          type: array
+          items:
+            $ref: "#/components/schemas/WritingFeedback"
+        speaking:
+          type: array
+          items:
+            $ref: "#/components/schemas/SpeakingFeedback"
+
+    # ─── Vocabulary ─────────────────────────────────────
+    VocabItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        term:
+          type: string
+          example: ubiquitous
+        topicTags:
+          type: array
+          items:
+            type: string
+          example: [technology, academic]
+        collocations:
+          type: array
+          items:
+            type: string
+          example: [ubiquitous computing, ubiquitous presence]
+        examples:
+          type: array
+          items:
+            type: string
+          example:
+            - Smartphones have become ubiquitous in modern life.
+        usageNotes:
+          type: string
+          example: Formal register; means "found everywhere"
+
+    VocabItemCreateRequest:
+      type: object
+      required: [term]
+      properties:
+        term:
+          type: string
+        topicTags:
+          type: array
+          items:
+            type: string
+        collocations:
+          type: array
+          items:
+            type: string
+        examples:
+          type: array
+          items:
+            type: string
+        usageNotes:
+          type: string
+
+    VocabItemUpdateRequest:
+      type: object
+      properties:
+        term:
+          type: string
+        topicTags:
+          type: array
+          items:
+            type: string
+        collocations:
+          type: array
+          items:
+            type: string
+        examples:
+          type: array
+          items:
+            type: string
+        usageNotes:
+          type: string
+
+    # ─── Stats ──────────────────────────────────────────
+    UserStats:
+      type: object
+      properties:
+        streak:
+          type: integer
+          description: Consecutive days with at least one logged mission
+          example: 12
+        weeklyXpEarned:
+          type: integer
+          description: XP earned in the current week (Mon–Sun)
+          example: 320
+        skillDistribution7d:
+          type: object
+          additionalProperties:
+            type: integer
+          description: XP earned per skill over the last 7 days
+          example:
+            reading: 80
+            listening: 90
+            speaking: 60
+            writing: 50
+            vocabulary: 40
+
+    # ─── Error ──────────────────────────────────────────
+    ErrorResponse:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 400
+        message:
+          type: string
+          example: Validation failed
+        details:
+          type: array
+          items:
+            type: string

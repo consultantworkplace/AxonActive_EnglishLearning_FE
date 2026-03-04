@@ -113,6 +113,7 @@ export const missionTemplates: MissionTemplate[] = [
 
 export const defaultUser: User = {
   id: "u1",
+  email: "mock@example.com",
   displayName: "You",
   xpTotal: 860,
   weeklyXpTarget: 450,
